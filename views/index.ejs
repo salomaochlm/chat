@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset='utf-8' />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<link type="text/css" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" />
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+	<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+	<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js"></script>
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.2/socket.io.min.js"></script>
+
+	<style type="text/css" rel="stylesheet">
+
+		*, ::before, ::after {
+			box-sizing: border-box;
+		}
+
+		html {
+			height: 100%;
+		}
+
+		body {
+			display: flex;
+			flex-direction: column;
+			height: 100%;
+			margin: 0;
+		}
+
+		.navbar-brand {
+			font-size: 1rem;
+		}
+
+		button[class='btn btn-primary'], #div-initial_settings button[class='btn btn-outline-primary'], #div-chat button[class='btn btn-outline-primary'] {
+			width: 100%;
+		}
+
+		input {
+			text-align: center;
+		}
+
+		.container {
+			height: 100%;
+		}
+
+		#div-chat {
+			height: 100%;
+		}
+
+		#div-chat div {
+			display: flex;
+			flex-direction: column;
+			height: 50%;
+		}
+
+		#div-chat ul {
+			flex-grow: 1;
+			overflow-y: scroll;
+			scroll-behavior: smooth;
+		}
+
+		.modal-content div:first-of-type {
+			align-items: center;
+			display: flex;
+			flex-direction: row;
+		}
+
+		.modal-content div:first-of-type img {
+			cursor: pointer;
+			height: 16px;
+			margin-left: 5px;
+		}
+		
+	</style>
+
+	<script type="text/javascript">
+
+		let name
+		let socketIO
+		let code
+
+		$(document).ready(() => {
+
+			$('button').on('click', event => {
+
+				switch (event.target.id) {
+
+					case 'button-create_a_session':
+
+						document.getElementById('button-create_a_session').disabled = true
+
+						$('#div-into_a_existing_session').hide(500)
+						$('#input-create_a_session-name').show(500)
+
+						document.getElementById('input-create_a_session-name').focus()
+
+						$('#div-create_a_session-cancel').show(500)
+
+						break
+
+					case 'button-create_a_session-cancel':
+
+						document.getElementById('button-create_a_session').disabled = false
+
+						$('#div-create_a_session-cancel').hide(500)
+						$('#div-create_a_session-continue').hide(500)
+						$('#input-create_a_session-name').hide(500)
+						$('#div-into_a_existing_session').show(500)
+
+						document.getElementById('input-create_a_session-name').value = ''
+
+						break
+
+					case 'button-into_a_existing_session':
+
+						document.getElementById('button-into_a_existing_session').disabled = true
+
+						$('#div-create_a_session').hide(500)
+						$('#input-into_a_existing_session-code').show(500)
+
+						document.getElementById('input-into_a_existing_session-code').focus()
+
+						$('#div-into_a_existing_session-cancel').show(500)
+
+						break
+
+					case 'button-into_a_existing_session-cancel':
+
+						document.getElementById('button-into_a_existing_session').disabled = false
+
+						$('#div-into_a_existing_session-cancel').hide(500)
+						$('#div-into_a_existing_session-continue').hide(500)
+						$('#div-into_a_existing_session-name').hide(500)
+						$('#input-into_a_existing_session-code').hide(500)
+						$('#div-create_a_session').show(500)
+
+						document.getElementById('input-into_a_existing_session-code').value = ''
+						document.getElementById('input-into_a_existing_session-name').value = ''
+
+						break
+
+					case 'button-create_a_session-continue':
+
+						code = new Date().getTime().toString()
+						name = document.getElementById('input-create_a_session-name').value
+
+						createSession()
+
+						break
+
+					case 'button-into_a_existing_session-continue':
+
+						code = document.getElementById('input-into_a_existing_session-code').value
+						name = document.getElementById('input-into_a_existing_session-name').value
+
+						createSession()
+
+						break
+
+					case 'button-leave_session':
+						location.reload()
+						break
+
+					case 'button-share_session':
+						toggleModal()
+						break
+
+					case 'button-send_message':
+						sendMessage()
+						break
+				}
+			})
+
+			$('input').on('input', event => {
+
+				switch (event.target.id) {
+
+					case 'input-create_a_session-name':
+						if (document.getElementById('input-create_a_session-name').value.length > 2) $('#div-create_a_session-continue').show(500)
+						else $('#div-create_a_session-continue').hide(500)
+						break
+
+					case 'input-into_a_existing_session-code':
+
+						const sessionCode = document.getElementById('input-into_a_existing_session-code').value
+
+						if (sessionCode.length === 13 && !isNaN(sessionCode)) {
+
+							$('#div-into_a_existing_session-name').show(500)
+							document.getElementById('input-into_a_existing_session-name').focus()
+
+						} else $('#div-into_a_existing_session-name').hide(500)
+
+						break
+
+					case 'input-into_a_existing_session-name':
+						if (document.getElementById('input-into_a_existing_session-name').value.length > 2) $('#div-into_a_existing_session-continue').show(500)
+						else $('#div-into_a_existing_session-continue').hide(500)
+						break
+
+					case 'input-message':
+						if (document.getElementById('input-message').value.length > 0) document.getElementById('button-send_message').disabled = false
+						else document.getElementById('button-send_message').disabled = true
+						break
+				}
+			})
+
+			$('#input-message').on('keyup', event => {
+				if (event.keyCode === 13 && document.getElementById('input-message').value.length > 0) sendMessage()
+			})
+
+			if (navigator.clipboard) $('.toast').toast({ delay: 3000 })
+			else document.getElementById('img-copy_session_code').style.display = 'none'
+		})
+
+		function createSession() {
+
+			$('#div-initial_settings').hide(500)
+			$('#div-chat').show(500)
+			
+			socketIO = io()
+			socketIO.emit('link_user_code', { code })
+
+			const audio = new Audio('fade_in.ogg')
+			audio.volume = 0.05
+
+			socketIO.on('message_from_server', allData => {
+
+				for (data of allData) {
+
+					const newListItem = document.createElement('li')
+					newListItem.setAttribute('class', 'list-group-item')
+					newListItem.innerText = `${data.name}: ${data.message}`
+
+					document.getElementById('ul-messages').appendChild(newListItem)
+
+					$('#ul-messages').animate({ scrollTop: $('#ul-messages').prop('scrollHeight') }, 50)
+				}
+				
+				if (allData.length > 0) audio.play()
+			})
+
+			document.getElementById('div-session_code').innerText = `Session code: ${code}`
+		}
+
+		function toggleModal() {
+			$('.modal').modal('toggle')
+		}
+
+		function sendMessage() {
+
+			socketIO.emit('message_from_client', {
+				code,
+				name,
+				message: document.getElementById('input-message').value
+			})
+
+			document.getElementById('input-message').value = ''
+			document.getElementById('button-send_message').disabled = true
+			document.getElementById('input-message').focus()
+		}
+
+		function copySessionCode() {
+
+			navigator.clipboard.writeText(code).then(() => {
+
+				$('.modal').modal('toggle')
+				$('.toast').toast('show')
+				
+			}).catch(error => alert('Failed to copy the session code\n' + error.message + '\nYou can still do this manually'))
+		}
+
+	</script>
+</head>
+
+<body>
+	<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+		<div class="container-fluid">
+			<a class="navbar-brand" href="/">Home</a>
+			<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+				<span class="navbar-toggler-icon"></span>
+			</button>
+			<div class="collapse navbar-collapse" id="navbarSupportedContent">
+				<ul class="navbar-nav me-auto mb-2 mb-lg-0">
+					<li class="nav-item">
+						<a class="nav-link active" href="https://github.com/salomaochlm/chat" target="_blank">GitHub</a>
+					</li>
+				</ul>
+			</div>
+		</div>
+	</nav>
+	<br>
+	<div class="container">
+		<h2 class="text-center">Chat</h2>
+		<br>
+		<div id="div-initial_settings">
+			<div id="div-create_a_session">
+				<button id="button-create_a_session" class="btn btn-primary">Create a Session</button>
+				<br>
+				<br>
+				<input id="input-create_a_session-name" type="text" class="form-control" placeholder="Enter your name..." style="display: none" />
+				<div id="div-create_a_session-continue" style="display: none">
+					<br>
+					<button id="button-create_a_session-continue" class="btn btn-primary">Continue</button>
+				</div>
+				<div id="div-create_a_session-cancel" style="display: none">
+					<br>
+					<button id="button-create_a_session-cancel" class="btn btn-outline-primary">Cancel</button>
+				</div>
+			</div>
+			<div id="div-into_a_existing_session">
+				<button id="button-into_a_existing_session" class="btn btn-primary">Join a Session</button>
+				<br>
+				<br>
+				<input id="input-into_a_existing_session-code" type="text" inputmode="numeric" maxlength="13" class="form-control" placeholder="Enter the session code..." style="display: none" />
+				<div id="div-into_a_existing_session-name" style="display: none">
+					<br>
+					<input id="input-into_a_existing_session-name" type="text" class="form-control" placeholder="Enter your name..." />
+				</div>
+				<div id="div-into_a_existing_session-continue" style="display: none">
+					<br>
+					<button id="button-into_a_existing_session-continue" class="btn btn-primary">Continue</button>
+				</div>
+				<div id="div-into_a_existing_session-cancel" style="display: none">
+					<br>
+					<button id="button-into_a_existing_session-cancel" class="btn btn-outline-primary">Cancel</button>
+				</div>
+			</div>
+		</div>
+		<div id="div-chat" style="display: none;">
+			<div>
+				<ul id="ul-messages" class="list-group"></ul>
+				<br>
+				<input id="input-message" type="text" class="form-control" placeholder="Enter your message..." />
+			</div>
+			<div>
+				<br>
+				<button id="button-send_message" class="btn btn-primary" disabled>Send Message</button>
+				<br>
+				<button id="button-share_session" class="btn btn-primary">Share Session</button>
+				<br>
+				<button id="button-leave_session" class="btn btn-outline-primary">Leave Session</button>
+			</div>
+		</div>
+		<div class="modal fade" tabindex="-1">
+			<div class="modal-dialog">
+				<div class="modal-content modal-dialog-centered">
+					<br>
+					<h6 class="modal-title">Share Session</h6>
+					<br>
+					<div>
+						<div id="div-session_code"></div>
+						<img id="img-copy_session_code" src="copy.png" class="img-fluid" alt="copy session code" onclick="copySessionCode()" data-credits="icon created by Freepik (https://www.flaticon.com/authors/freepik) - Flaticon (https://www.flaticon.com/)" />
+					</div>
+					<br>
+					<button type="button" class="btn btn-outline-primary" data-bs-dismiss="modal">Close</button>
+					<br>
+				</div>
+			</div>
+		</div>
+		<div class="toast-container position-absolute top-50 start-50 translate-middle">
+			<div class="toast text-center" role="alert" aria-live="assertive" aria-atomic="true">
+				<div class="toast-body">Copied to clipboard</div>
+			</div>
+		</div>
+	</div>
+</body>
+
+</html>
